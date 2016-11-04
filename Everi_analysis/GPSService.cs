@@ -22,6 +22,8 @@ namespace Everi_analysis
         private string _remarks = string.Empty;
         private Timer _movementTrackingTimer;
 
+        const int TwoMinutes = 1000 * 60 * 2;
+
         IBinder _binder;
 
         protected LocationManager _locationManager = (LocationManager)Application.Context.GetSystemService(LocationService);
@@ -72,8 +74,11 @@ namespace Everi_analysis
                     //}
                     //else
                     //    _address = "Unable to determine the address.";
-
-                    _newLocation = location;
+                    if (IsBetterLocation(location,_newLocation))
+                    {
+                        _newLocation = location;
+                    }
+                   
                     //if (_oldLocation!=null)
                     //{
                     //    var coord1 = new LatLng(_oldLocation.Latitude, _oldLocation.Longitude);
@@ -163,7 +168,7 @@ namespace Everi_analysis
                     {
                         coord1 = new LatLng(0, 0);
                     }
-                   
+
                     var coord2 = new LatLng(_newLocation.Latitude, _newLocation.Longitude);
 
                     var distanceInRadius = Utils.HaversineDistance(coord1, coord2, Utils.DistanceUnit.Kilometers);
@@ -191,7 +196,7 @@ namespace Everi_analysis
 
                 _oldLocation = _newLocation;
 
-                
+
                 Intent intent = new Intent(this, typeof(MainActivity.MyBroadcastReceiver));
                 intent.SetAction(MainActivity.MyBroadcastReceiver.LOCATION_UPDATED);
                 intent.AddCategory(Intent.CategoryDefault);
@@ -205,8 +210,8 @@ namespace Everi_analysis
             {
                 _address = "Unable to determine the address.";
             }
-            
-            
+
+
         }
 
         public void StopLoactionUpdates()
@@ -219,18 +224,88 @@ namespace Everi_analysis
 
         public void OnProviderDisabled(string provider)
         {
-            
+
         }
 
         public void OnProviderEnabled(string provider)
         {
-            
+
         }
 
         public void OnStatusChanged(string provider, [GeneratedEnum] Availability status, Bundle extras)
         {
-            
+
         }
+
+        #region Get the most accurate result
+
+        private bool IsBetterLocation(Location location, Location currentBestLocation)
+        {
+            if (currentBestLocation == null)
+            {
+                // A new location is always better than no location
+                return true;
+            }
+
+            long timeDelta = location.Time - currentBestLocation.Time;
+
+            bool isSignificantlyNewer = timeDelta > TwoMinutes;
+
+            bool isSignificantlyOlder = timeDelta < -TwoMinutes;
+
+            bool isNewer = timeDelta > 0;
+
+            // If it's been more than two minutes since the current location, use the new location
+            // because the user has likely moved
+            if (isSignificantlyNewer)
+            {
+                return true;
+            }
+            else if (isSignificantlyOlder)
+            {
+                return false;
+            }
+
+            // Check whether the new location fix is more or less accurate
+            int accuracyDelta = (int)(location.Accuracy - currentBestLocation.Accuracy);
+            bool isLessAccurate = accuracyDelta > 0;
+            bool isMoreAccurate = accuracyDelta < 0;
+            bool isSignificantlyLessAccurate = accuracyDelta > 200;
+
+            // Check if the old and new location are from the same provider
+            bool isFromSameProvider = IsSameProvider(location.Provider, currentBestLocation.Provider);
+
+            // Determine location quality using a combination of timeliness and accuracy
+            if (isMoreAccurate)
+            {
+                return true;
+            }
+            else if (isNewer && !isLessAccurate)
+            {
+                return true;
+            }
+            else if (isNewer && !isSignificantlyLessAccurate && isFromSameProvider)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool IsSameProvider(string provider1, string provider2)
+        {
+            if (provider1 == null)
+            {
+                return (provider2 == null);
+            }
+
+            return (provider1 == provider2);
+        }
+
+
+
+
+        #endregion
     }
 
     public class GPSServiceBinder : Binder
