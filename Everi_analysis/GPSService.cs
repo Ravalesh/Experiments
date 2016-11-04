@@ -10,6 +10,7 @@ using Android.Runtime;
 using Android.Views;
 using Android.Widget;
 using Android.Locations;
+using System.Timers;
 
 namespace Everi_analysis
 {
@@ -19,6 +20,7 @@ namespace Everi_analysis
         private string _location = string.Empty;
         private string _address = string.Empty;
         private string _remarks = string.Empty;
+        private Timer _movementTrackingTimer;
 
         IBinder _binder;
 
@@ -27,6 +29,7 @@ namespace Everi_analysis
         protected LocationManager _locationManager2 = (LocationManager)Application.Context.GetSystemService(LocationService);
 
         private Location _oldLocation;
+        private Location _newLocation;
 
         public override IBinder OnBind(Intent intent)
         {
@@ -43,12 +46,12 @@ namespace Everi_analysis
         {
             try
             {
-                bool moving = false;
+                //bool moving = false;
                 if (location == null)
                     _location = "Unable to determine your location.";
                 else
                 {
-                    _location = String.Format("{0},{1}", location.Latitude, location.Longitude);
+                    //_location = String.Format("{0},{1}", location.Latitude, location.Longitude);
 
                     //Geocoder geocoder = new Geocoder(this);
 
@@ -69,41 +72,43 @@ namespace Everi_analysis
                     //}
                     //else
                     //    _address = "Unable to determine the address.";
-                    if (_oldLocation!=null)
-                    {
-                        var coord1 = new LatLng(_oldLocation.Latitude, _oldLocation.Longitude);
-                        var coord2 = new LatLng(location.Latitude, location.Longitude);
 
-                        var distanceInRadius = Utils.HaversineDistance(coord1, coord2, Utils.DistanceUnit.Kilometers);
-                        if (distanceInRadius >= 0.0005)
-                        {
-                            moving = true;
-                        }
-                    }
+                    _newLocation = location;
+                    //if (_oldLocation!=null)
+                    //{
+                    //    var coord1 = new LatLng(_oldLocation.Latitude, _oldLocation.Longitude);
+                    //    var coord2 = new LatLng(location.Latitude, location.Longitude);
+
+                    //    var distanceInRadius = Utils.HaversineDistance(coord1, coord2, Utils.DistanceUnit.Kilometers);
+                    //    if (distanceInRadius >= 0.0005)
+                    //    {
+                    //        moving = true;
+                    //    }
+                    //}
 
 
 
 
-                    //_remarks = string.Format("Your are {0} miles away from your original location.", distanceInRadius);
+                    ////_remarks = string.Format("Your are {0} miles away from your original location.", distanceInRadius);
 
-                    if (moving)
-                    {
-                        _remarks = string.Format("You are moving");
-                    }
-                    else
-                    {
-                        _remarks = string.Format("You are still");
-                    }
+                    //if (moving)
+                    //{
+                    //    _remarks = string.Format("You are moving");
+                    //}
+                    //else
+                    //{
+                    //    _remarks = string.Format("You are still");
+                    //}
 
-                    _oldLocation = location;
-                    Intent intent = new Intent(this, typeof(MainActivity.GpsServiceReceiver));
-                    intent.SetAction(MainActivity.GpsServiceReceiver.LOCATION_UPDATED);
-                    intent.AddCategory(Intent.CategoryDefault);
-                    intent.PutExtra("Location", _location);
-                    intent.PutExtra("Address", location.Provider);
-                    intent.PutExtra("Remarks", _remarks);
+                    //_oldLocation = location;
+                    //Intent intent = new Intent(this, typeof(MainActivity.GpsServiceReceiver));
+                    //intent.SetAction(MainActivity.GpsServiceReceiver.LOCATION_UPDATED);
+                    //intent.AddCategory(Intent.CategoryDefault);
+                    //intent.PutExtra("Location", _location);
+                    //intent.PutExtra("Address", location.Provider);
+                    //intent.PutExtra("Remarks", _remarks);
 
-                    SendBroadcast(intent);
+                    //SendBroadcast(intent);
 
                 }
             }
@@ -135,12 +140,81 @@ namespace Everi_analysis
 
             locationProvider = _locationManager.GetBestProvider(criteriaForGPSService, true);
             _locationManager2.RequestLocationUpdates(locationProvider, 0, 0, this);
+            _movementTrackingTimer = new Timer(1000);
+            _movementTrackingTimer.Elapsed += _movementTrackingTimer_Elapsed;
+            _movementTrackingTimer.Start();
+        }
+
+        private void _movementTrackingTimer_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            bool moving = false;
+            string provider = "";
+            try
+            {
+                if (_newLocation != null)
+                {
+                    LatLng coord1;
+
+                    if (_oldLocation != null)
+                    {
+                        coord1 = new LatLng(_oldLocation.Latitude, _oldLocation.Longitude);
+                    }
+                    else
+                    {
+                        coord1 = new LatLng(0, 0);
+                    }
+                   
+                    var coord2 = new LatLng(_newLocation.Latitude, _newLocation.Longitude);
+
+                    var distanceInRadius = Utils.HaversineDistance(coord1, coord2, Utils.DistanceUnit.Kilometers);
+                    if (distanceInRadius >= 0.0005)
+                    {
+                        moving = true;
+                    }
+                    _location = String.Format("{0},{1}", _newLocation.Latitude, _newLocation.Longitude);
+                    provider = _newLocation.Provider;
+                }
+
+
+
+
+                //_remarks = string.Format("Your are {0} miles away from your original location.", distanceInRadius);
+
+                if (moving)
+                {
+                    _remarks = string.Format("You are moving");
+                }
+                else
+                {
+                    _remarks = string.Format("You are still");
+                }
+
+                _oldLocation = _newLocation;
+
+                
+                Intent intent = new Intent(this, typeof(MainActivity.MyBroadcastReceiver));
+                intent.SetAction(MainActivity.MyBroadcastReceiver.LOCATION_UPDATED);
+                intent.AddCategory(Intent.CategoryDefault);
+                intent.PutExtra("Location", _location);
+                intent.PutExtra("Address", provider);
+                intent.PutExtra("Remarks", _remarks);
+
+                SendBroadcast(intent);
+            }
+            catch (Exception)
+            {
+                _address = "Unable to determine the address.";
+            }
+            
+            
         }
 
         public void StopLoactionUpdates()
         {
             _locationManager.RemoveUpdates(this);
             _locationManager2.RemoveUpdates(this);
+            _movementTrackingTimer.Stop();
+            _movementTrackingTimer.Dispose();
         }
 
         public void OnProviderDisabled(string provider)

@@ -79,6 +79,7 @@
     <Compile Include="MainApplication.cs" />
     <Compile Include="Resources\Resource.Designer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SensorService.cs" />
     <Compile Include="Utils.cs" />
   </ItemGroup>
   <ItemGroup>

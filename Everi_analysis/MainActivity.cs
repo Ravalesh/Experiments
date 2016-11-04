@@ -14,10 +14,13 @@ namespace Everi_analysis
     {
         TextView _status, _latitude, _longitude;
 
-        GPSServiceBinder _binder;
+        GPSServiceBinder _gpsBinder;
         GPSServiceConnection _gpsServiceConnection;
         Intent _gpsServiceIntent;
-        private GpsServiceReceiver _receiver;
+        private MyBroadcastReceiver _receiver;
+
+        SensorConnection _sensorConnection;
+        Intent _sensorIntent;
 
         public static MainActivity Instance;
         protected override void OnCreate(Bundle bundle)
@@ -53,16 +56,20 @@ namespace Everi_analysis
 
         private void RegisterService()
         {
-            _gpsServiceConnection = new GPSServiceConnection(_binder);
+            _gpsServiceConnection = new GPSServiceConnection(_gpsBinder);
             _gpsServiceIntent = new Intent(Android.App.Application.Context, typeof(GPSService));
             BindService(_gpsServiceIntent, _gpsServiceConnection, Bind.AutoCreate);
+
+            _sensorConnection = new SensorConnection();
+            _sensorIntent = new Intent(Application.Context, typeof(SensorService));
+            BindService(_sensorIntent, _sensorConnection, Bind.AutoCreate);
         }
 
         private void RegisterBroadcastReceiver()
         {
-            IntentFilter filter = new IntentFilter(GpsServiceReceiver.LOCATION_UPDATED);
+            IntentFilter filter = new IntentFilter(MyBroadcastReceiver.LOCATION_UPDATED);
             filter.AddCategory(Intent.CategoryDefault);
-            _receiver = new GpsServiceReceiver();
+            _receiver = new MyBroadcastReceiver();
             RegisterReceiver(_receiver, filter);
         }
 
@@ -71,11 +78,20 @@ namespace Everi_analysis
             UnregisterReceiver(_receiver);
         }
 
-        public void UpdateUI(Intent intent)
+        public void UpdateUI(Intent intent, ReceiverType receiver)
         {
-            _latitude.Text = intent.GetStringExtra("Location");
-            _longitude.Text = intent.GetStringExtra("Address");
-            _status.Text = intent.GetStringExtra("Remarks");
+            if (receiver == ReceiverType.Location)
+            {
+                _latitude.Text = intent.GetStringExtra("Location");
+                _longitude.Text = intent.GetStringExtra("Address");
+                _status.Text = intent.GetStringExtra("Remarks");
+            }
+            else if (receiver == ReceiverType.Shake)
+            {
+                Toast.MakeText(this, "Device Shaken", ToastLength.Long).Show();
+
+            }
+            
         }
 
         protected override void OnResume()
@@ -97,21 +113,41 @@ namespace Everi_analysis
             _gpsServiceConnection.StopLocationUpdates();
             UnbindService(_gpsServiceConnection);
             _gpsServiceConnection = null;
+            _gpsServiceIntent.Dispose();
+
+            _sensorConnection.StopSensorService();
+            UnbindService(_sensorConnection);
+            _sensorConnection = null;
+            _sensorIntent.Dispose();
+
             Finish();
         }
 
+        
+
         [BroadcastReceiver]
-        internal class GpsServiceReceiver : BroadcastReceiver
+        internal class MyBroadcastReceiver : BroadcastReceiver
         {
             public static readonly string LOCATION_UPDATED = "LOCATION_UPDATED";
+            public static readonly string SHAKE_DETECTED = "SHAKE_DETECTED";
             public override void OnReceive(Context context, Intent intent)
             {
                 if (intent.Action.Equals(LOCATION_UPDATED))
                 {
-                    Instance.UpdateUI(intent);
+                    Instance.UpdateUI(intent, ReceiverType.Location);
+                }
+                else if (intent.Action.Equals(SHAKE_DETECTED))
+                {
+                    Instance.UpdateUI(intent, ReceiverType.Shake);
                 }
             }
         }
+    }
+
+    public enum ReceiverType
+    {
+        Location = 1,
+        Shake = 2
     }
 }
 
