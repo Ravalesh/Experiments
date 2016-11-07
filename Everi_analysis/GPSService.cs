@@ -74,10 +74,10 @@ namespace Everi_analysis
                     //}
                     //else
                     //    _address = "Unable to determine the address.";
-                    if (IsBetterLocation(location,_newLocation))
-                    {
+                    //if (IsBetterLocation(location,_newLocation))
+                    //{
                         _newLocation = location;
-                    }
+                    //}
                    
                     //if (_oldLocation!=null)
                     //{
@@ -172,7 +172,7 @@ namespace Everi_analysis
                     var coord2 = new LatLng(_newLocation.Latitude, _newLocation.Longitude);
 
                     var distanceInRadius = Utils.HaversineDistance(coord1, coord2, Utils.DistanceUnit.Kilometers);
-                    if (distanceInRadius >= 0.0005)
+                    if (distanceInRadius >= 0.001)
                     {
                         moving = true;
                     }
